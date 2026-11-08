@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My characters</title>
+<style>
+  :root { color-scheme: dark; --bg:#16161a; --panel:#1e1e24; --line:#34343e; --ink:#e7e7ee; --dim:#9a9aa8; --key:#6fd3ff }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, sans-serif; display:flex; height:100vh }
+  aside { width:290px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:14px; overflow:auto }
+  main { flex:1; display:grid; place-items:center; padding:12px }
+  canvas { width:min(70vw, 560px); aspect-ratio:3/4; background:
+    conic-gradient(from 45deg, #23232a 25%, #1b1b21 0 50%, #23232a 0 75%, #1b1b21 0) 0 0/24px 24px; border-radius:10px }
+  h1 { font-size:15px; margin:0 0 10px } h2 { font-size:12px; color:var(--dim); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.06em }
+  select, button { font:inherit; color:var(--ink); background:#2a2a33; border:1px solid var(--line); border-radius:6px; padding:6px 9px }
+  button { cursor:pointer } button:hover { border-color:var(--key) } button.on { background:var(--key); color:#06202b; border-color:var(--key) }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 }
+  label { display:grid; grid-template-columns:76px 1fr 38px; gap:6px; align-items:center; font-size:12px; color:var(--dim) }
+  input[type=range] { width:100% } .dim { color:var(--dim); font-size:12px }
+</style>
+<aside>
+  <h1>My characters</h1>
+  <select id="who" style="width:100%"></select>
+  <div class="row"><button id="idle" class="on">Idle motion</button><button id="follow" class="on">Follow pointer</button></div>
+  <h2>Actions</h2>
+  <div class="row" id="acts"></div>
+  <h2>Expressions</h2>
+  <div class="row" id="exprs"><span class="dim">none in this model</span></div>
+  <h2>Pose</h2>
+  <div id="sliders"></div>
+  <h2>Live</h2>
+  <div class="row"><button id="mic">Microphone</button><button id="cam">Camera</button></div>
+  <p class="dim" id="log">—</p>
+</aside>
+<main><canvas id="c"></canvas></main>
+<script type="module">
+import { Player } from '../dist/index.js'
+const $ = (s) => document.querySelector(s)
+const log = (t) => { $('#log').textContent = t }
+const PARAMS = [['angleX', -30, 30], ['angleY', -30, 30], ['angleZ', -30, 30],
+  ['eyeLOpen', 0, 1], ['eyeROpen', 0, 1], ['eyeBallX', -1, 1], ['eyeBallY', -1, 1],
+  ['mouthOpen', 0, 1], ['vowel', -1, 1], ['smile', 0, 1], ['bodyX', -10, 10], ['breath', 0, 1]]
+
+let player = null, speech = null, tracking = null
+$('#sliders').innerHTML = PARAMS.map(([k, a, b]) =>
+  `<label>${k}<input type="range" data-k="${k}" min="${a}" max="${b}" step="0.01" value="0"><span id="v_${k}">0</span></label>`).join('')
+$('#sliders').oninput = (e) => {
+  const k = e.target.dataset.k, v = +e.target.value
+  if (player) player.params[k] = v
+  $('#v_' + k).textContent = v.toFixed(2)
+}
+$('#acts').innerHTML = ['nod', 'shake', 'tilt', 'hop', 'shy']
+  .map((a) => `<button data-act="${a}">${a}</button>`).join('') + '<button data-act="blink">blink</button>'
+$('#acts').onclick = (e) => {
+  const a = e.target.dataset.act
+  if (!a || !player) return
+  a === 'blink' ? player.blink() : player.act(a)
+}
+
+async function open(id) {
+  if (player) player.dispose()
+  player = new Player($('#c'), { idle: $('#idle').classList.contains('on') })
+  speech = tracking = null
+  $('#mic').classList.remove('on'); $('#cam').classList.remove('on')
+  const info = await player.load(`/my-characters/out/${id}/`)
+  const ex = info?.expressions || []
+  $('#exprs').innerHTML = ex.length
+    ? ex.map((e) => `<button data-x="${e.id ?? e}">${e.label ?? e.id ?? e}</button>`).join('') + '<button data-x="">neutral</button>'
+    : '<span class="dim">none in this model (a flat picture has one face)</span>'
+  $('#exprs').onclick = (e) => { if (e.target.dataset.x !== undefined) player.setExpression(e.target.dataset.x || null) }
+  log(`${info?.name ?? id} — ${ex.length} expressions`)
+}
+
+$('#who').onchange = (e) => open(e.target.value)
+$('#idle').onclick = (e) => { e.target.classList.toggle('on'); if (player) player.idle = e.target.classList.contains('on') }
+$('#follow').onclick = (e) => { e.target.classList.toggle('on'); if (player) player.followPointer = e.target.classList.contains('on') ? 'page' : false }
+$('#mic').onclick = async () => {
+  if (!player) return
+  try {
+    if (speech) { speech.stop(); speech = null; $('#mic').classList.remove('on'); return log('microphone off') }
+    const { startLipSync } = await import('../dist/voice.js')
+    speech = await startLipSync(player)
+    $('#mic').classList.add('on'); log('listening: the mouth follows the microphone')
+  } catch (e) { log('microphone: ' + e.message) }
+}
+$('#cam').onclick = async () => {
+  if (!player) return
+  try {
+    const { startFaceTracking } = await import('../dist/tracking.js')
+    tracking = await startFaceTracking(player)
+    $('#cam').classList.add('on'); log('camera: the face follows yours')
+  } catch (e) { log('camera: ' + e.message + ' (needs @mediapipe/tasks-vision)') }
+}
+
+const cs = await (await fetch('/api/characters')).json()
+$('#who').innerHTML = cs.map((c) => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('')
+if (cs.length) open(cs[0].id); else log('nothing in my-characters/out yet — convert a picture first')
+</script>

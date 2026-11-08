@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>LivLiv converter: pose render</title>
+<style>html,body{margin:0;background:#17171b}canvas{width:420px;height:600px;display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+  // Driven by tools/render.mjs: load a package, hold a pose, hand back a PNG. No idle motion, so each
+  // pose is the rig alone and two runs give the same picture.
+  import { Player } from '../dist/index.js'
+
+  const canvas = document.getElementById('c')
+  let player = null
+
+  const frames = (n) => new Promise((done) => {
+    const step = () => (--n <= 0 ? done() : requestAnimationFrame(step))
+    requestAnimationFrame(step)
+  })
+
+  window.open_ = async (src) => {
+    if (player) player.dispose()
+    player = new Player(canvas, { idle: false, followPointer: false })
+    const info = await player.load(src)
+    await frames(3)
+    return { name: info?.name ?? null, expressions: (info?.expressions || []).map((e) => e.id ?? e) }
+  }
+
+  window.pose = async (params, settle = 10) => {
+    Object.assign(player.params, params)
+    await frames(settle)
+    return player.snapshot()
+  }
+
+  window.errors = []
+  addEventListener('error', (e) => window.errors.push(String(e.message)))
+  addEventListener('unhandledrejection', (e) => window.errors.push(String(e.reason)))
+</script>

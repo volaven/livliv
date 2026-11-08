@@ -5,3 +5,10 @@ dist/
 example/model/
 # made by the build (scripts/pack-characters.mjs)
 characters/*.livliv
+
+# the character workspace (tools/convert.py): your pictures and what it makes of them
+my-characters/source/
+my-characters/out/
+
+# python bytecode from tools/
+__pycache__/
