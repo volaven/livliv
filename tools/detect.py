@@ -270,26 +270,45 @@ def _guess_eyes(face_box):
 
 
 def _find_brows(rgb, a, eyes, face_box):
+    """A brow over each eye: a flat dark mark, clear of the lashes, matching the one on the other side.
+
+    One alone is never enough -- a strand of fringe looks just like a brow on its own, but not like
+    the brow on the other side of the face.
+    """
     fx0, fy0, fx1, fy1 = face_box
-    out = []
+    picks = []
     for e in eyes:
         ex0, ey0, ex1, ey1 = e['box']
         ew, eh = ex1 - ex0, max(4, ey1 - ey0)
-        box = (ex0 - 0.30 * ew, max(fy0 - 0.2 * eh, ey0 - 2.0 * eh), ex1 + 0.30 * ew, ey0 - 0.02 * eh)
-        if box[3] - box[1] < 3:
-            out.append(None); continue
+        box = (ex0 - 0.30 * ew, max(fy0 - 0.2 * eh, ey0 - 2.2 * eh), ex1 + 0.30 * ew, ey0 - 0.22 * eh)
+        if box[3] - box[1] < 4:
+            return []
         bs, _ = K.blobs(_dark(rgb, a, box, BROW_DARK))
-        pick = None
+        here = []
         for b in bs:
             x0, y0, x1, y1 = b['box']
             w, h = x1 - x0, max(1, y1 - y0)
-            if w < 0.35 * ew or w < 1.4 * h or h > 0.9 * eh:
+            if w < 0.35 * ew or w > 2.2 * ew or w < 1.5 * h or h > 0.7 * eh:
                 continue
-            score = b['area'] * (1.0 + 0.4 * w / max(ew, 1))
-            if pick is None or score > pick[0]:
-                pick = (score, b)
-        out.append(pick[1] if pick else None)
-    return [list(b['box']) for b in out] if all(out) else []
+            here.append(b)
+        if not here:
+            return []
+        picks.append(here[:4])
+    if len(picks) != 2:
+        return []
+    best = None
+    for L in picks[0]:
+        for R in picks[1]:
+            lh, rh = L['box'][3] - L['box'][1], R['box'][3] - R['box'][1]
+            lw, rw = L['box'][2] - L['box'][0], R['box'][2] - R['box'][0]
+            if abs(L['cy'] - R['cy']) > 0.9 * max(lh, rh):
+                continue
+            if min(lw, rw) < 0.45 * max(lw, rw):
+                continue
+            score = L['area'] + R['area']
+            if best is None or score > best[0]:
+                best = (score, [L, R])
+    return [list(b['box']) for b in best[1]] if best else []
 
 
 def _find_mouth(rgb, a, eyes, face_box, chin):

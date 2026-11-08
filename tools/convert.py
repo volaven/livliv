@@ -73,7 +73,12 @@ def convert(src, args):
     rgba, cut = D.cut_background(im, tol=args.bg_tol)
     rgba = D.fit_canvas(rgba, max_side=args.max_side)
     W, H = rgba.shape[1], rgba.shape[0]
-    print(f'  canvas {W}x{H}{" (flat background removed)" if cut else " (kept the file-s own alpha)"}')
+    kept = float((rgba[..., 3] > 32).mean())
+    print(f'  canvas {W}x{H}{" (flat background removed)" if cut else " (kept the file-s own alpha)"}'
+          f', {kept * 100:.0f}% of it is the character')
+    if cut and kept < 0.22:
+        print('  ! little of the picture was kept. Where the character wears something close to the '
+              'background colour it is cut away with it: look at _marks.png, and try a lower --bg-tol')
 
     mpath = args.marks or os.path.join(MARKS, cid + '.json')
     marks = None

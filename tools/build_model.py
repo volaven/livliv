@@ -118,17 +118,22 @@ def eye_parts(arr, box, sep, lids=False):
     ys, xs = np.nonzero(blob)
     eh = max(4, ys.max() - ys.min() + 1)
     ew = max(4, xs.max() - xs.min() + 1)
-    r = max(2, int(0.13 * eh))
-    core = K.largest(K.erode(blob, r))
-    iris = (K.dilate(core, r) & blob) if core.any() else K.erode(blob, max(1, r // 2))
-    if iris.sum() < 0.08 * blob.sum():
-        iris = K.erode(blob, max(1, r // 2))
 
     _, S, V = K.hsv(rgb)
-    light = blob & (V > 0.80) & (S < 0.22)
+    light = blob & (V > 0.78) & (S < 0.25)
     sclera = rgb[light].mean(0) if light.sum() > 24 else np.array([248.0, 247.0, 250.0])
-    dark = blob & (V < np.quantile(V[blob], 0.18))
-    lash = rgb[dark].mean(0) if dark.sum() > 8 else np.array([60.0, 48.0, 54.0])
+    rim = blob & ~K.erode(blob, max(2, int(0.09 * eh)))          # the lash and the eye's outline
+    murk = blob & (V < max(0.30, float(np.quantile(V[blob], 0.12))))
+    lash = rgb[rim & murk].mean(0) if (rim & murk).sum() > 8 else np.array([60.0, 48.0, 54.0])
+
+    # the iris: the coloured middle of the eye -- not the whites, not the dark rim around it
+    cand = K.erode(blob, max(2, int(0.07 * eh))) & ~light & ~(rim | murk)
+    if cand.sum() < 0.06 * blob.sum():
+        cand = K.erode(blob, max(2, int(0.07 * eh))) & ~light
+    iris = K.fill_holes(K.largest(cand)) if cand.any() else np.zeros_like(blob)
+    iris = K.dilate(iris, 1) & blob
+    if iris.sum() < 0.04 * blob.sum():
+        iris = K.erode(blob, max(1, int(0.12 * eh)))
 
     eye = c.copy()
     eye[..., :3][iris] = sclera
@@ -340,21 +345,24 @@ def build(rgba, marks, out_dir, cid, name, opts):
         else:
             notes.append('nothing found under the chin: a turn may show a gap behind the jaw')
 
+    # the head fades out over the last few rows, onto body that still holds the same pixels there:
+    # at rest the two add up to the picture again, and a turn's small shift has no hard edge to show
+    fade = max(4.0, 0.045 * ry)
     yy = np.arange(H, dtype=np.float32)[:, None]
     head_arr = face_arr.copy()
-    head_arr[..., 3] *= np.clip((cut + 1.5 - yy) / 1.5, 0, 1)
+    head_arr[..., 3] *= np.clip((cut - yy) / fade + 1.0, 0, 1)
 
     body_arr = base.copy()
-    body_arr[:cut, :, 3] = 0
-    stub_top = int(max(0, cut - 0.80 * ry))
+    body_arr[:max(0, int(cut - fade)), :, 3] = 0
+    stub_top = int(max(0, cut - fade - 0.80 * ry))
     if run is not None and stub_top < cut:
         # the neck carried up behind the head, no wider than the head's own outline, so at rest it is
         # hidden exactly and a turn uncovers neck rather than background
         fill = np.median(base[src, run[0]:run[1], :3], axis=0)
         cover = K.dilate(face_arr[..., 3] > 32, max(3, int(0.05 * ry)))
-        band = np.zeros((H, W), bool); band[stub_top:cut] = True
+        band = np.zeros((H, W), bool); band[stub_top:max(stub_top + 1, int(cut - fade))] = True
         m = band & cover
-        taper = np.clip((yy - stub_top) / max(1.0, 0.22 * (cut - stub_top)), 0, 1)
+        taper = np.clip((yy - stub_top) / max(1.0, 0.22 * (cut - fade - stub_top)), 0, 1)
         body_arr[..., :3] = np.where(m[..., None], fill, body_arr[..., :3])
         body_arr[..., 3] = np.where(m, np.maximum(body_arr[..., 3], 255.0 * taper), body_arr[..., 3])
 
