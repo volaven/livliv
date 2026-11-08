@@ -12,3 +12,6 @@ my-characters/out/
 
 # python bytecode from tools/
 __pycache__/
+
+# exports of this branch, made for taking the work elsewhere
+livliv-character-converter.*
