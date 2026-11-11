@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findPython } from './py.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PORT = Number(process.argv[2] || 8080)
@@ -53,8 +54,10 @@ const server = createServer(async (req, res) => {
       const src = readdirSync(join(ROOT, 'my-characters', 'source'))
         .find((f) => f.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') === id)
       if (!src) return json(res, 404, { error: `no picture in my-characters/source/ for ${id}` })
-      const p = spawn('python3', ['-I', join(ROOT, 'tools', 'convert.py'), join(ROOT, 'my-characters', 'source', src)],
-        { cwd: ROOT })
+      const py = findPython()
+      if (!py) return json(res, 500, { error: 'no Python 3 on this machine' })
+      const p = spawn(py[0], [...py[1], '-I', join(ROOT, 'tools', 'convert.py'),
+        join(ROOT, 'my-characters', 'source', src)], { cwd: ROOT, shell: process.platform === 'win32' })
       let out = ''
       p.stdout.on('data', (d) => { out += d }); p.stderr.on('data', (d) => { out += d })
       return p.on('close', (code) => json(res, code ? 500 : 200, { code, log: out }))

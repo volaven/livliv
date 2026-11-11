@@ -51,8 +51,9 @@ if (!targets.length) {
 }
 if (!targets.length) { console.error('render: nothing to draw in my-characters/out/'); server.close(); process.exit(1) }
 
+const HERE = '/opt/pw-browsers/chromium'          // this container ships one; elsewhere playwright finds its own
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium',
+  ...(existsSync(HERE) ? { executablePath: HERE } : {}),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox', '--headless'],
 })
 let bad = 0

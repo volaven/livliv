@@ -7,6 +7,30 @@
 
 ---
 
+## 0. 설치 (처음 한 번)
+
+Node.js 20 이상과 Python 3.10 이상이 필요합니다.
+
+```bash
+git clone https://github.com/livliv-dev/player
+cd player
+npm install
+npm run build
+```
+
+```bash
+python -m pip install -r tools/requirements.txt
+```
+
+Windows에는 `python3` 라는 이름이 없고 `python` 또는 `py -3` 입니다. `npm run my:*` 는 셋 중 있는 것을 알아서
+찾으니 그대로 쓰시면 됩니다. 패키지가 빠져 있으면 설치 명령을 알려 줍니다.
+
+포즈 렌더(`npm run my:render`)를 쓸 때만 헤드리스 크로미움이 한 번 더 필요합니다.
+
+```bash
+npx playwright-core install chromium-headless-shell
+```
+
 ## 1. 그림 넣기
 
 `my-characters/source/` 에 PNG(또는 JPG/WEBP)를 넣습니다. 파일 이름이 캐릭터 id가 됩니다.
@@ -14,6 +38,15 @@
 ```bash
 cp ~/내그림/mina.png my-characters/source/mina.png
 ```
+
+압축으로 받은 그림 묶음은 풀어서 넣으면 됩니다 (PowerShell).
+
+```powershell
+Expand-Archive -Path ..\character_sheets.zip -DestinationPath my-characters\source
+```
+
+**한 파일에 캐릭터 한 명, 정면 한 컷**이어야 합니다. 한 장에 여러 포즈·표정이 모여 있는 캐릭터 시트라면
+정면 전신(또는 반신) 한 컷만 잘라서 넣으세요. 나머지 컷이 같이 들어 있으면 얼굴을 엉뚱한 곳에서 찾습니다.
 
 **잘 맞는 그림**
 

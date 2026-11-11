@@ -102,10 +102,10 @@
     "test:engines": "node test/smoke.mjs firefox && node test/smoke.mjs webkit",
     "prepublishOnly": "npm run check && npm test",
     "prepack": "npm run build",
-    "my:convert": "python3 -I tools/convert.py",
+    "my:convert": "node tools/py.mjs convert.py",
     "my:render": "node tools/render.mjs",
     "my:serve": "node tools/serve.mjs",
-    "my:check": "python3 -I tools/livliv_validate.py",
-    "my:calibrate": "python3 -I tools/calibrate.py"
+    "my:check": "node tools/py.mjs livliv_validate.py",
+    "my:calibrate": "node tools/py.mjs calibrate.py"
   }
 }
